@@ -1,0 +1,3 @@
+[binaries]
+c = 'clang-14'
+cpp = 'clang++-14'
