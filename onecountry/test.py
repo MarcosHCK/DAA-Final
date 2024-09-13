@@ -15,6 +15,7 @@
 # along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 #
 from random import randint
+from sys import stderr
 
 def program ():
 
@@ -43,6 +44,7 @@ def program ():
       recs [j] = t
 
   print (nrecs)
+  print (nrecs, file = stderr)
 
   for r in recs:
 

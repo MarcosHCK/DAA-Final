@@ -15,7 +15,6 @@
 # along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 #
 from typing import Any, Generator, NoReturn
-import sys
 
 def collect () -> Generator[tuple[int, ...], Any, NoReturn]:
 
@@ -23,23 +22,15 @@ def collect () -> Generator[tuple[int, ...], Any, NoReturn]:
 
     yield tuple (map (int, input ().split (' ')))
 
-Rectangles = list[tuple[tuple[int, int], tuple[int, int]]]
+def isGood (recs: list[tuple[tuple[int, int], tuple[int, int]]], axis = 0) -> bool:
 
-def isGood (recsx: Rectangles, recsy: Rectangles, axis = 0) -> bool:
-
-  if len (recsx) < 2:
+  if len (recs) < 2:
 
     return True
   else:
 
-    assert (len (recsx) == len (recsy))
     lastp = 0
-
-    match axis:
-
-      case 0: recs = recsx
-      case 1: recs = recsy
-      case _: raise Exception ()
+    recs = sorted (recs, key = lambda x: x [0] [axis])
 
     for i in range (len (recs) - 1):
 
@@ -48,35 +39,15 @@ def isGood (recsx: Rectangles, recsy: Rectangles, axis = 0) -> bool:
 
       if firstp >= lastp:
 
-        match axis:
+        return isGood (recs [:1 + i]) and isGood (recs [1 + i:])
 
-          case 0:
-
-            fs = set (recsx1 := recsx [:1 + i])
-            recsy1 = list (filter (lambda x: x in fs, recsy))
-            ss = set (recsx2 := recsx [1 + i:])
-            recsy2 = list (filter (lambda x: x in ss, recsy))
-
-          case 1:
-
-            fs = set (recsy1 := recsy [:1 + i])
-            recsx1 = list (filter (lambda x: x in fs, recsx))
-            ss = set (recsy2 := recsy [1 + i:])
-            recsx2 = list (filter (lambda x: x in ss, recsx))
-
-        return isGood (recsx1, recsy1) and isGood (recsx2, recsy2)
-
-    return False if axis > 0 else isGood (recsx, recsy, 1 + axis)
+    return False if axis > 0 else isGood (recs, 1 + axis)
 
 def program ():
 
   (ncastles,) = next (collect ())
   rectangles = [ ((x1, y1), (x2, y2)) for _, (x1, y1, x2, y2) in zip (range (ncastles), collect ()) ]
-  rectangles = set (rectangles)
 
-  recsx = sorted (rectangles, key = lambda x: x[0][0])
-  recsy = sorted (rectangles, key = lambda x: x[0][1])
-
-  print ('NO' if not isGood (recsx, recsy) else 'YES')
+  print ('NO' if not isGood (rectangles) else 'YES')
 
 program ()

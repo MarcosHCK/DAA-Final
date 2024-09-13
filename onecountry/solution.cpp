@@ -16,15 +16,37 @@
  */
 #include <algorithm>
 #include <array>
-#include <cstdio>
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <tuple>
 #include <vector>
 
 template<typename T, int dims> class Point : public std::array<T, dims>
 {
 public:
-
+  inline Point () = default;
+  inline Point (const Point<T, dims>& o) : std::array<T, dims> (o) { }
   template<typename... _Args>
   inline Point (_Args&... __args) : std::array<T, dims> ({ std::forward<_Args> (__args)... }) { }
+  template<typename... _Args>
+  inline Point (_Args&&... __args) : std::array<T, dims> ({ std::forward<_Args> (__args)... }) { }
+
+  inline std::string to_string () const
+    {
+      return to_string_helper (std::make_integer_sequence<int, dims> ());
+    }
+
+  template<int ... Is>
+  inline std::string to_string_helper (std::integer_sequence<int, Is ...> const&) const
+    {
+      auto first = 1;
+      auto ss = std::stringstream ();
+
+      using unused = int [];
+      (void) unused { (first = (ss << std::string (first == 1 ? "<" : ", ") << (*this) [Is], 0))... };
+      return ((ss << ">"), ss.str ());
+    }
 };
 
 template<typename T> class Rectangle
@@ -34,170 +56,246 @@ private:
   Point<T, 2> top;
 
 public:
-
+  inline Rectangle() = default;
+  inline Rectangle (const Rectangle<T>& o) : bottom (o.bottom), top (o.top) { }
   inline Rectangle (const Point<T, 2>& bottom, const Point<T, 2>& top) : bottom (bottom), top (top) {}
   inline Rectangle (const Point<T, 2>&& bottom, const Point<T, 2>&& top) : bottom (std::move (bottom)), top (std::move (top)) {}
 
   inline constexpr const Point<T, 2>& get_bottom () const { return bottom; }
   inline constexpr const Point<T, 2>& get_top () const { return top; }
+
+  inline constexpr std::string to_string () const
+    {
+      return (("(" + bottom.to_string ()) + ", " + top.to_string ()) + ")";
+    }
 };
 
 template<typename T, typename Ti> class Rec : public Rectangle<T>
 {
 private:
-  Ti deleted = 0;
   Ti index = 0;
 public:
+  inline Rec () = default;
+  inline Rec (const Rec<T, Ti>& o) : Rectangle<T> (o), index (o.index) { }
   inline Rec (const Point<T, 2>& bottom, const Point<T, 2>& top) : Rectangle<T> (bottom, top) {}
   inline Rec (const Point<T, 2>&& bottom, const Point<T, 2>&& top) : Rectangle<T> (std::move (bottom), std::move (top)) {}
 
-  inline constexpr void dec_deleted () { --deleted; }
-  inline constexpr bool get_deleted () const { return deleted; }
-  inline constexpr void inc_deleted () { ++deleted; }
   inline constexpr int get_index () const { return index; }
   inline constexpr void set_index (int index) { this->index = index; }
 };
 
-template<typename T, typename Ti, int axis> bool is_good (std::array<std::vector<Rec<T, Ti>>, 2>& dims)
+template<typename T, typename Ti> class Problem
 {
-  Ti has = 0;
-  int axis2 = 0;
+public:
 
-  if constexpr (axis == 0) axis2 = 1; else axis2 = 0;
-
-  for (Ti i = 0; i < dims [axis].size (); ++i)
+  template<int axis>
+  static bool is_good (std::array<std::vector<Rec<T, Ti>>, 2>&& dims)
     {
-      if (dims [axis] [i].get_deleted () == 0) ++has;
+      if constexpr (axis == 1)
+
+        return is_good_<1, 0> (dims);
+      else
+        {
+          if (is_good_<0, 1> (dims))
+
+            return true;
+          else
+            return is_good_<1, 0> (dims);
+        }
     }
 
-  if (has < 2)
-
-    return true;
-  else
+  template<int axis, int axis2>
+  static inline bool is_good_ (const std::array<std::vector<Rec<T, Ti>>, 2>& dims)
     {
-      Ti first = 0, last, second;
+      Ti hint, size;
 
-      for (Ti i = 0; i < dims [axis].size (); ++i) if (dims [axis] [i].get_deleted () == 0)
-        last = i;
+      if ((size = dims [axis].size ()) < 2)
 
-      for (Ti i = 0; i < dims [axis].size (); ++i) if (dims [axis] [i].get_deleted () == 0)
+        return true;
+      else
         {
-          first = i;
-          break;
+          if ((hint = slice<axis> (dims, size / 2)) < 0)
+
+            return false;
+          else
+            return split<axis, axis2> (dims, hint);
+        }
+    }
+
+  template<int axis>
+  static inline Ti slice (const std::array<std::vector<Rec<T, Ti>>, 2>& dims, Ti hint)
+    {
+      auto size = dims [axis].size ();
+      auto rightmost = std::vector<T> (size, 0);
+
+      for (Ti i = 0, j = 0; i < size; ++i)
+        {
+          rightmost [i] = std::max (rightmost [j], dims [axis] [i].get_top () [axis]);
+          j = i;
         }
 
-      for (T leftmost = 0, rightmost = 0; first != last; first = second)
+      for (Ti i = hint, j = hint; i > 0 || j < size - 1;)
         {
-
-          for (Ti i = 1 + first; i < 1 + last; ++i) if (dims [axis] [i].get_deleted () == 0)
+          if (i > 0)
             {
-              second = i;
-              break;
+              if (dims [axis] [i].get_bottom () [axis] < rightmost [i - 1]) --i; else
+                return i;
             }
 
-          leftmost = std::max (leftmost, dims [axis] [first].get_top () [axis]);
-          rightmost = dims [axis] [second].get_bottom () [axis];
-
-          if (rightmost >= leftmost)
+          if (j < size - 1)
             {
-              for (Ti j = 0; j < second; ++j)
-                dims [axis] [j].inc_deleted ();
-              for (Ti j = 0; j < dims [axis2].size (); ++j) if (dims [axis2] [j].get_index () < second)
-                dims [axis2] [j].inc_deleted ();
-
-              bool rightgood = is_good<T, Ti, 0> (dims);
-
-              for (Ti j = 0; j < second; ++j)
-                dims [axis] [j].dec_deleted ();
-              for (Ti j = 0; j < dims [axis2].size (); ++j) if (dims [axis2] [j].get_index () < second)
-                dims [axis2] [j].dec_deleted ();
-
-              if (! rightgood)
-
-                return rightgood;
-              else
-                {
-                  for (Ti j = second; j < dims [axis].size (); ++j)
-                    dims [axis] [j].inc_deleted ();
-                  for (Ti j = 0; j < dims [axis2].size (); ++j) if (dims [axis2] [j].get_index () >= second)
-                    dims [axis2] [j].inc_deleted ();
-
-                  bool leftgood = is_good<T, Ti, 0> (dims);
-
-                  for (Ti j = second; j < dims [axis].size (); ++j)
-                    dims [axis] [j].dec_deleted ();
-                  for (Ti j = 0; j < dims [axis2].size (); ++j) if (dims [axis2] [j].get_index () >= second)
-                    dims [axis2] [j].dec_deleted ();
-
-                  return leftgood;
-                }
+              if (dims [axis] [j + 1].get_bottom () [axis] < rightmost [j]) ++j; else
+                return j + 1;
             }
         }
 
-      if constexpr (axis > 0)
+      return -1;
+    }
+
+  static inline bool solve (std::vector<Rec<T, Ti>>&& recs)
+    {
+      return is_good<0> (sort (std::move (recs)));
+    }
+
+  static inline std::array<std::vector<Rec<T, Ti>>, 2> sort (std::vector<Rec<T, Ti>>&& recs)
+    {
+      std::vector<std::tuple<Ti, Ti, Rec<T, Ti>>> sorted;
+      std::vector<Rec<T, Ti>> sortedx;
+      std::vector<Rec<T, Ti>> sortedy;
+
+      (sorted = std::vector<std::tuple<Ti, Ti, Rec<T, Ti>>> ()).reserve (recs.size ());
+      (sortedx = std::vector<Rec<T, Ti>> ()).reserve (recs.size ());
+      (sortedy = std::vector<Rec<T, Ti>> ()).reserve (recs.size ());
+
+      for (Ti i = 0; i < recs.size (); ++i) sorted.push_back (std::make_tuple (0, 0, recs [i]));
+
+      /* sort by y0 */
+
+      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rec<T, Ti>>& a, const std::tuple<Ti, Ti, Rec<T, Ti>>& b)
+        {
+          return std::get<2> (a).get_bottom () [1] < std::get<2> (b).get_bottom () [1];
+        });
+
+      for (Ti i = 0; i < sorted.size (); ++i) sorted [i] = std::make_tuple (0, i, std::move (std::get<2> (sorted [i])));
+
+      /* sort by x0 */
+
+      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rec<T, Ti>>& a, const std::tuple<Ti, Ti, Rec<T, Ti>>& b)
+        {
+          return std::get<2> (a).get_bottom () [0] < std::get<2> (b).get_bottom () [0];
+        });
+
+      for (Ti i = 0; i < sorted.size (); ++i) sorted [i] = std::make_tuple (i, std::get<1> (sorted [i]), std::move (std::get<2> (sorted [i])));
+
+      /* transfer sorted rects */
+
+      for (auto iter = sorted.begin (); iter != sorted.end (); ++iter)
+        {
+          Rec<T, Ti> rec;
+          (rec = Rec<T, Ti> (std::get<2> (*iter))).set_index (std::get<1> (*iter));
+          sortedx.push_back (std::move (rec));
+        }
+
+      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rec<T, Ti>>& a, const std::tuple<Ti, Ti, Rec<T, Ti>>& b)
+        {
+          return std::get<1> (a) < std::get<1> (b);
+        });
+
+      for (auto iter = sorted.begin (); iter != sorted.end (); ++iter)
+        {
+          Rec<T, Ti> rec;
+          (rec = Rec<T, Ti> (std::get<2> (*iter))).set_index (std::get<0> (*iter));
+          sortedy.push_back (std::move (rec));
+        }
+
+      return { std::move (sortedx), std::move (sortedy) };
+    }
+
+  template<int axis, int axis2>
+  static inline bool split (const std::array<std::vector<Rec<T, Ti>>, 2>& dims, Ti second)
+    {
+      if (! is_good<0> (split_left<axis, axis2> (dims, second)))
 
         return false;
       else
-        return is_good<T, Ti, 1> (dims);
+        return is_good<0> (split_right<axis, axis2> (dims, second));
     }
-}
+
+  template<int axis, int axis2>
+  static inline std::array<std::vector<Rec<T, Ti>>, 2> split_left (const std::array<std::vector<Rec<T, Ti>>, 2>& dims, Ti second)
+    {
+      std::vector<int> translate (dims [axis].size (), 0);
+      std::vector<Rec<T, Ti>> vec1, vec2;
+
+      (vec2 = std::vector<Rec<T, Ti>> ()).reserve (second); for (Ti i = 0, j = 0; i < dims [axis2].size (); ++i) if (dims [axis2] [i].get_index () < second)
+        {
+          translate [i] = j++;
+          vec2.push_back (Rec<T, Ti> (dims [axis2] [i]));
+        }
+
+      (vec1 = std::vector<Rec<T, Ti>> ()).reserve (second); for (Ti i = 0; i < second; ++i)
+        {
+          Rec<T, Ti> rec;
+          (rec = Rec<T, Ti> (dims [axis] [i])).set_index (translate [dims [axis] [i].get_index ()]);
+          vec1.push_back (std::move (rec));
+        }
+
+      if constexpr (axis == 0)
+      
+        return { std::move (vec1), std::move (vec2) };
+      else
+        return { std::move (vec2), std::move (vec1) };
+    }
+
+  template<int axis, int axis2>
+  static inline std::array<std::vector<Rec<T, Ti>>, 2> split_right (const std::array<std::vector<Rec<T, Ti>>, 2>& dims, Ti second)
+    {
+      Ti others = dims [axis].size () - second;
+      std::vector<int> translate (dims [axis].size (), 0);
+      std::vector<Rec<T, Ti>> vec1, vec2;
+
+      (vec2 = std::vector<Rec<T, Ti>> ()).reserve (others); for (Ti i = 0, j = 0; i < dims [axis2].size (); ++i) if (dims [axis2] [i].get_index () >= second)
+        {
+          Rec<T, Ti> rec;
+          (rec = Rec<T, Ti> (dims [axis2] [i])).set_index (dims [axis2] [i].get_index () - second);
+          translate [i] = j++;
+          vec2.push_back (std::move (rec));
+        }
+
+      (vec1 = std::vector<Rec<T, Ti>> ()).reserve (others); for (Ti i = second; i < dims [axis].size (); ++i)
+        {
+          Rec<T, Ti> rec;
+          (rec = Rec<T, Ti> (dims [axis] [i])).set_index (translate [dims [axis] [i].get_index ()]);
+          vec1.push_back (std::move (rec));
+        }
+
+      if constexpr (axis == 0)
+      
+        return { std::move (vec1), std::move (vec2) };
+      else
+        return { std::move (vec2), std::move (vec1) };
+    }
+};
 
 template<typename T, typename Ti> int program ()
 {
   Ti nrecs;
+  std::vector<Rec<T, Ti>> recs;
   T x1, y1, x2, y2;
 
-  std::vector<Rec<T, Ti>> sortedx;
-  std::vector<Rec<T, Ti>> sortedy;
-
-  scanf ("%i", &nrecs);
-  sortedx.reserve (nrecs);
-  sortedy.reserve (nrecs);
+  std::cin >> nrecs;
 
   for (Ti i = 0; i < nrecs; ++i)
     {
-      scanf ("%i %i %i %i", &x1, &y1, &x2, &y2);
-      sortedx.push_back (Rec<T, Ti> (Point<T, 2> (x1, y1), Point<T, 2> (x2, y2)));
-      sortedy.push_back (Rec<T, Ti> (Point<T, 2> (x1, y1), Point<T, 2> (x2, y2)));
+      std::cin >> x1 >> y1 >> x2 >> y2;
+      recs.push_back (Rec<T, Ti> (Point<T, 2> (x1, y1), Point<T, 2> (x2, y2)));
     }
 
-  /* sort sortedx */
-
-  std::sort (sortedx.begin (), sortedx.end (), [] (const Rec<T, Ti>& a, const Rec<T, Ti>& b)
-    {
-      return a.get_bottom () [1] < b.get_bottom () [1];
-    });
-
-  for (Ti i = 0; i < nrecs; ++i) sortedx [i].set_index (i);
-
-  std::sort (sortedx.begin (), sortedx.end (), [] (const Rec<T, Ti>& a, const Rec<T, Ti>& b)
-    {
-      return a.get_bottom () [0] < b.get_bottom () [0];
-    });
-
-  /* sort sortedy */
-
-  std::sort (sortedy.begin (), sortedy.end (), [] (const Rec<T, Ti>& a, const Rec<T, Ti>& b)
-    {
-      return a.get_bottom () [0] < b.get_bottom () [0];
-    });
-
-  for (Ti i = 0; i < nrecs; ++i) sortedy [i].set_index (i);
-
-  std::sort (sortedy.begin (), sortedy.end (), [] (const Rec<T, Ti>& a, const Rec<T, Ti>& b)
-    {
-      return a.get_bottom () [1] < b.get_bottom () [1];
-    });
-
-  std::array<std::vector<Rec<T, Ti>>, 2> ar = { sortedx, sortedy };
-
-  /* answer */
-
-  printf ("%s\n", ! is_good<T, Ti, 0> (ar) ? "NO" : "YES");
+  std::cout << (! Problem<T, Ti> ().solve (std::move (recs)) ? "NO" : "YES") << std::endl;
   return 0;
 }
 
 int main ()
 {
-  return program<int, int> ();
+  return program<long, int> ();
 }

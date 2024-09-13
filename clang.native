@@ -1,4 +1,4 @@
 [binaries]
-c = 'clang-14'
-cpp = 'clang++-14'
-cpp_std = 'c++23'
+c = 'clang-16'
+cpp = 'clang++-16'
+cpp_std = 'c++20'
