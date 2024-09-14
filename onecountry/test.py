@@ -22,7 +22,7 @@ def program ():
   x = 0
   y = 0
 
-  nrecs = randint (0, 100000)
+  nrecs = 100000#randint (0, 100000)
   recs = []
 
   for _ in range (nrecs):
