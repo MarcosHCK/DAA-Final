@@ -19,36 +19,26 @@ from sys import stderr
 
 def program ():
 
-  x = 0
-  y = 0
+  width = 100000
+  nrecs = randint (100, 10000)
+  size = width // nrecs
+  xoff = 0
+  yoff = 0
 
-  nrecs = 100000
-  recs = []
-
-  for _ in range (nrecs):
-
-    rec1 = (x, y)
-    rec2 = (x := 1 + randint (x, x + 10), y := 1 + randint (y, y + 10))
-
-    recs.append ((rec1, rec2))
+  print (f'recs = {nrecs * 2}', file = stderr)
+  print (f'size = {size}', file = stderr)
+  print (nrecs * 2)
 
   for _ in range (nrecs):
 
-    i = randint (0, nrecs - 1)
-    j = randint (0, nrecs - 1)
+    x0, y0 = xoff, yoff
+    x1, y1 = (xoff := xoff + size), width
 
-    if i != j:
+    print (x0, y0, x1, y1)
 
-      t = recs [i]
-      recs [i] = recs [j]
-      recs [j] = t
+    x0, y0 = xoff, yoff
+    x1, y1 = width, (yoff := yoff + size)
 
-  print (nrecs)
-  print (nrecs, file = stderr)
-
-  for r in recs:
-
-    (x1, y1), (x2, y2) = r
-    print (f'{x1} {y1} {x2} {y2}')
+    print (x0, y0, x1, y1)
 
 program ()

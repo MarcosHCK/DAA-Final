@@ -15,16 +15,17 @@
  * along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <algorithm>
-#include <array>
 #include <iostream>
+#include <limits>
+#include <map>
+#include <set>
+#include <span>
 #include <tuple>
-#include <variant>
 #include <vector>
 
 template<typename T, int dims> class Point : public std::array<T, dims>
 {
 public:
-  inline Point (const Point<T, dims>& o) : std::array<T, dims> (o) { }
   template<typename... _Args>
   inline Point (_Args&... __args) : std::array<T, dims> ({ std::forward<_Args> (__args)... }) { }
   template<typename... _Args>
@@ -34,307 +35,317 @@ public:
 template<typename T> class Rectangle : public Point<T, 4>
 {
 public:
-  inline Rectangle (const Rectangle& o) : Point<T, 4> (o) {}
-  inline Rectangle (const Point<T, 4>& o) : Point<T, 4> (o) {}
+  template<typename... _Args>
+  inline Rectangle (_Args&... __args) : Point<T, 4> ({ std::forward<_Args> (__args)... }) { }
+  template<typename... _Args>
+  inline Rectangle (_Args&&... __args) : Point<T, 4> ({ std::forward<_Args> (__args)... }) { }
 
-  inline constexpr const std::array<T, 2> get_bottom () const
+  inline constexpr const T& get_x0 () const noexcept { return (*this) [0]; }
+  inline constexpr const T& get_x1 () const noexcept { return (*this) [2]; }
+  inline constexpr const T& get_y0 () const noexcept { return (*this) [1]; }
+  inline constexpr const T& get_y1 () const noexcept { return (*this) [3]; }
+};
+
+namespace std
+{
+  template<typename T, int axis>
+  inline const std::array<T, 2> get (const Rectangle<T>& r) noexcept
     {
-      return { (*this) [0], (*this) [1] };
+      if constexpr (axis == 0)
+
+        return { r.get_x0 (), r.get_x1 () };
+      else
+        return { r.get_y0 (), r.get_y1 () };
     }
 
-  inline constexpr const std::array<T, 2> get_top () const
+  template<typename T, int axis>
+  inline const std::array<T, 2> get (const Rectangle<T>* r) noexcept
     {
-      return { (*this) [2], (*this) [3] };
+      return std::get<T, axis> (*r);
+    }
+
+  template<typename T, int axis>
+  inline const std::array<T, 2> get (Rectangle<T>* r) noexcept
+    {
+      return std::get<T, axis> (*r);
+    }
+}
+
+template<typename T, typename N, int axis, typename M = T::value_type> class SegmentTree
+{
+public:
+  static const int A0_MOST = 0;
+  static const int A1_MOST = 1;
+  using size_type = std::vector<T>::size_type;
+  static inline size_type left (size_type node) { return 2 * node + 1; }
+  static inline size_type mid (size_type l, size_type r) { return l + (r - l) / 2; }
+  static inline size_type right (size_type node) { return 2 * node + 2; }
+
+  size_type size;
+  std::map<T, N*> stage;
+  std::vector<T> store;
+  std::vector<N> tree;
+
+  inline const N* build (size_type node, size_type start, size_type end)
+    {
+      if (start == end)
+        {
+          stage.insert (std::make_pair (store [start], & tree [node]));
+          return (tree [node] = N (store [start]), & tree [node]);
+        }
+      else
+        {
+          auto m = mid (start, end);
+          auto l = build (left (node), start, m);
+          auto r = build (right (node), m + 1, end);
+
+          return (tree [node] = N (l, r), & tree [node]);
+        }
+    }
+
+public:
+
+  inline const N query (size_type node, size_type start, size_type end, size_type l, size_type r)
+    {
+      if (r < start || end < l)
+
+        return N ();
+
+      if (l <= start && end <= r)
+
+        return tree [node];
+      else
+        {
+          auto m = mid (start, end);
+          auto l_ = query (left (node), start, m, l, r);
+          auto r_ = query (right (node), m + 1, end, l, r);
+          return N (&l_, &r_);
+        }
+    }
+
+  inline const N* update (size_type node, size_type start, size_type end, N* hint = nullptr)
+    {
+      if (start == end)
+        {
+          return & tree [node];
+        }
+      else if (hint == nullptr)
+        {
+          auto m = mid (start, end);
+          auto l = update (left (node), start, m, hint);
+          auto r = update (right (node), m + 1, end, hint);
+
+          return (tree [node] = N (l, r), & tree [node]);
+        }
+      else
+        {
+          size_type m;
+
+          if (& tree [m = mid (start, end)] > hint)
+            {
+              auto l = update (left (node), start, m, hint);
+              auto r = & tree [right (node)];
+              return (tree [node] = N (l, r), & tree [node]);
+            }
+          else
+            {
+              auto l = & tree [left (node)];
+              auto r = update (right (node), m + 1, end, hint);
+              return (tree [node] = N (l, r), & tree [node]);
+            }
+        }
+    }
+
+public:
+
+  inline SegmentTree (const std::vector<T>&& vec) : size (vec.size ()), store (std::move (vec)), tree (4 * vec.size ())
+    {
+      build (0, 0, size - 1);
+    }
+
+  inline constexpr N* operator[] (const T& v)
+    {
+      typename std::map<T, N*>::iterator at;
+
+      if ((at = stage.find (v)) != stage.end ())
+
+        return std::get<1> (*at);
+      else
+        std::__throw_out_of_range ("unexisting value");
+    }
+
+  inline constexpr std::span<T> get_values () { return std::span (store); }
+};
+
+template<typename T, int axis, typename M> class Node
+{
+  static const int A0_MOST = SegmentTree<T, Node<T, axis, M>, axis, M>::A0_MOST;
+  static const int A1_MOST = SegmentTree<T, Node<T, axis, M>, axis, M>::A1_MOST;
+public:
+
+  M a0most = std::numeric_limits<M>::max ();
+  M a1most = std::numeric_limits<M>::min ();
+
+  inline Node () { }
+
+  inline Node (const Node& o) : a0most (o.a0most), a1most (o.a1most)
+    {
+    }
+
+  inline Node (const T& v)
+    {
+      a0most = std::get<M, axis> (v) [A0_MOST];
+      a1most = std::get<M, axis> (v) [A1_MOST];
+    }
+
+  inline Node (const Node* left, const Node* right)
+        : a0most (std::min (left->a0most, right->a0most))
+        , a1most (std::max (left->a1most, right->a1most))
+    {
     }
 };
 
-template<typename T, typename Ti> class Rec
+template<typename T, int axis, typename M = T::value_type> class SegmentTreeA : public SegmentTree<T, Node<T, axis, M>, axis, M>
 {
 private:
-  const Point<T, 2>* bounds = nullptr;
-  const Ti index;
+  using size_type = SegmentTree<T, Node<T, axis, M>, axis, M>::size_type;
 public:
-  inline Rec () = delete;
-  inline Rec (const Rec<T, Ti>& o) : bounds (o.bounds), index (o.index) {}
-  inline Rec (const Rec<T, Ti>& o, const Ti& index) : bounds (o.bounds), index (index) {}
-  inline Rec (const Point<T, 2>* bounds, const Ti& index) : bounds (bounds), index (index) {}
 
-  inline constexpr const T& get_bottom () const { return (*bounds) [0]; }
-  inline constexpr const Ti& get_index () const { return index; }
-  inline constexpr const T& get_top () const { return (*bounds) [1]; }
+  inline std::array<M, 2> query_mosts (size_type l, size_type r)
+    {
+      auto n = this->query (0, 0, this->size - 1, l, r);
+      return { n.a0most, n.a1most };
+    }
 };
 
-template<typename T, typename Ti> class Recs : public std::array<Rec<T, Ti>*, 2>
+int depth = 0;
+
+static std::ostream& derout ()
 {
-private:
-  const Ti length;
-public:
-  inline Recs () = delete;
-  inline Recs (Rec<T, Ti>* first, Rec<T, Ti>* second, const Ti& length) : std::array<Rec<T, Ti>*, 2> ({ first, second }), length (length) {}
-  inline constexpr const Ti& get_length () const { return length; }
-};
+  return std::cerr << std::string (depth * 2, '-');
+}
 
 template<typename T, typename Ti> class Problem
 {
+  static const int X_AXIS = 0;
+  static const int Y_AXIS = 1;
+  static const int A0_MOST = SegmentTreeA<Rectangle<T>*, X_AXIS, T>::A0_MOST;
+  static const int A1_MOST = SegmentTreeA<Rectangle<T>*, X_AXIS, T>::A1_MOST;
 public:
 
-  static inline bool is_good (const Recs<T, Ti>& dims)
+  class Range : public std::tuple<Ti, Ti>
     {
-      Ti size;
+    public:
+      inline Range (const Ti& l, const Ti& r) : std::tuple<Ti, Ti> (l, r) { }
+      inline Range (const Ti&& l, const Ti&& r) : std::tuple<Ti, Ti> (l, r) { }
+      inline constexpr const Ti& l () const { return std::get<0> (*this); }
+      inline constexpr const Ti& r () const { return std::get<1> (*this); }
+    };
 
-      if ((size = dims.get_length ()) < 2)
+  static inline bool solve (std::span<Rectangle<T>*> rects)
+    {
+      //if (depth > 11) std::__throw_overflow_error ("overflow");
+      Ti size;
+      bool b;
+
+      derout () << "solve size: " << rects.size () << std::endl;
+
+      if ((size = rects.size ()) < 2)
 
         return true;
       else
-        {
-          auto p = slice<0, 1> (dims, size / 2);
-
-          if (std::get<0> (p) == -1)
-            {
-              return false;
-            }
-          else switch (std::get<0> (p))
-            {
-              case 0: return split<0, 1> (dims, std::get<Ti> (std::get<1> (p)));
-              case 1: return split<1, 0> (dims, std::get<Ti> (std::get<1> (p)));
-              default: return false;
-            }
-        }
+        return (depth++, b = solve (rects, size), depth--, b);
     }
 
-  template<int axis, int axis2>
-  static inline std::tuple<int, std::variant<Ti, std::tuple<Ti, Ti>>> slice (const Recs<T, Ti>& dims, const Ti& hint)
+private:
+
+  template<int axis>
+  using STree = SegmentTreeA<Rectangle<T> *, axis, T>;
+
+  template<int axis>
+  static inline STree<axis> prepare (std::span<Rectangle<T>*> rects)
     {
-      auto size = dims.get_length ();
-      auto rightmost = std::vector<Ti> (size, 0);
-      auto topmost = std::vector<Ti> (size, 0);
+      auto vec = std::vector<Rectangle<T> *> (rects.begin (), rects.end ());
 
-      for (Ti c, i = 0, j = 0; i < size; j = i++)
+      std::sort (vec.begin (), vec.end (), [](const Rectangle<T>* a, const Rectangle<T>* b)
         {
-          if (dims [axis] [c = rightmost [j]].get_top () > dims [axis] [i].get_top ())
+          return std::get<T, axis> (a) [A0_MOST] < std::get<T, axis> (b) [A0_MOST];
+        });
 
-            rightmost [i] = c;
-          else
-            rightmost [i] = i;
-        }
-
-      for (Ti c, i = 0, j = 0; i < size; j = i++)
-        {
-          if (dims [axis2] [c = topmost [j]].get_top () > dims [axis2] [i].get_top ())
-
-            topmost [i] = c;
-          else
-            topmost [i] = i;
-        }
-
-      auto p = slice_axis<axis, axis2> (dims, hint, rightmost, topmost);
-
-      if (std::get<0> (p) != -1)
-
-        return std::move (p);
-      else
-        {
-          if constexpr (axis == 1)
-
-            return std::make_tuple (-1, 0);
-          else
-            return slice_axis<axis2, axis> (dims, hint, topmost, rightmost);
-        }
+      return SegmentTreeA<Rectangle<T> *, axis, T> (std::move (vec));
     }
 
-  template<int axis, int axis2>
-  static inline std::tuple<int, std::variant<Ti, std::tuple<Ti, Ti>>> slice_axis (const Recs<T, Ti>& dims, const Ti& hint,
-      const std::vector<Ti>& rightmost, const std::vector<Ti>& topmost)
+  static inline bool solve (std::span<Rectangle<T>*> rects, const Ti& size)
     {
-      auto size = dims.get_length ();
+      auto xtree = prepare<X_AXIS> (rects);
+      auto ytree = prepare<Y_AXIS> (rects);
 
-      for (Ti i = hint, j = hint; i > 0 || j < size - 1;)
+      for (Ti i = size / 2, j = size / 2; i > 0 || j < size - 1;)
         {
           if (i > 0)
             {
-              if (dims [axis] [i].get_bottom () < dims [axis] [rightmost [i - 1]].get_top ()) --i; else
-                return std::make_tuple (axis, i);
+              if (std::get<T, X_AXIS> (xtree.get_values () [i]) [A0_MOST] >= xtree.query_mosts (0, i - 1) [A1_MOST])
+                {
+                  return
+                      solve (xtree.get_values ().subspan (0, i))
+                   && solve (xtree.get_values ().subspan (i, size - i));
+                }
+              else
+              if (std::get<T, Y_AXIS> (ytree.get_values () [i]) [A0_MOST] >= ytree.query_mosts (0, i - 1) [A1_MOST])
+                {
+                  return
+                      solve (ytree.get_values ().subspan (0, i))
+                   && solve (ytree.get_values ().subspan (i, size - i));
+                }
+              --i;
             }
 
           if (j < size - 1)
             {
-              if (dims [axis] [j + 1].get_bottom () < dims [axis] [rightmost [j]].get_top ()) ++j; else
-                return std::make_tuple (axis, j + 1);
+              if (std::get<T, X_AXIS> (xtree.get_values () [j + 1]) [A0_MOST] >= xtree.query_mosts (0, j) [A1_MOST])
+                {
+                  return
+                      solve (xtree.get_values ().subspan (0, j))
+                   && solve (xtree.get_values ().subspan (j, size - (j + 1)));
+                }
+              else
+              if (std::get<T, Y_AXIS> (ytree.get_values () [j + 1]) [A0_MOST] >= ytree.query_mosts (0, j) [A1_MOST])
+                {
+                  return
+                      solve (ytree.get_values ().subspan (0, j))
+                   && solve (ytree.get_values ().subspan (j, size - (j + 1)));
+                }
+              ++j;
             }
         }
 
-      return std::make_tuple (-1, 0);
-    }
-
-  static inline bool solve (const std::vector<Point<T, 4>>&& recs)
-    {
-      Point<T, 2>* points = (Point<T, 2>*) malloc ((recs.size () << 1) * sizeof (Point<T, 2>));
-      Point<T, 2>* pointptr [2] = { & points [0], & points [recs.size ()] };
-
-      auto good = is_good (sort (std::move (recs), pointptr));
-      return (free (points), good);
-    }
-
-  static inline Recs<T, Ti> sort (const std::vector<Point<T, 4>>&& recs, Point<T, 2>* points [2])
-    {
-      std::vector<std::tuple<Ti, Ti, Rectangle<T>>> sorted;
-      (sorted = std::vector<std::tuple<Ti, Ti, Rectangle<T>>> ()).reserve (recs.size ());
-
-      auto sortedx = (Rec<T, Ti>*) malloc (recs.size () * sizeof (Rec<T, Ti>));
-      auto sortedy = (Rec<T, Ti>*) malloc (recs.size () * sizeof (Rec<T, Ti>));
-
-      for (Ti i = 0; i < recs.size (); ++i)
-        {
-          sorted.push_back (std::make_tuple (0, 0, Rectangle<T> (recs [i])));
-        }
-
-      /* sort by y0 */
-
-      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rectangle<T>>& a, const std::tuple<Ti, Ti, Rectangle<T>>& b)
-        {
-          return std::get<2> (a).get_bottom () [1] < std::get<2> (b).get_bottom () [1];
-        });
-
-      for (Ti i = 0; i < sorted.size (); ++i)
-        {
-          sorted [i] = std::make_tuple (0, i, std::move (std::get<2> (sorted [i])));
-        }
-
-      /* sort by x0 */
-
-      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rectangle<T>>& a, const std::tuple<Ti, Ti, Rectangle<T>>& b)
-        {
-          return std::get<2> (a).get_bottom () [0] < std::get<2> (b).get_bottom () [0];
-        });
-
-      for (Ti i = 0; i < sorted.size (); ++i)
-        {
-          sorted [i] = std::make_tuple (i, std::get<1> (sorted [i]), std::move (std::get<2> (sorted [i])));
-        }
-
-      /* transfer sorted rects */
-      int i = 0, j = 0;
-
-      for (const std::tuple<Ti, Ti, Rectangle<T>>& t : sorted)
-        {
-          Point<T, 2>* p;
-          *(p = & points [0] [i]) = Point<T, 2> (std::get<2> (t).get_bottom () [0], std::get<2> (t).get_top () [0]);
-
-          new (&sortedx [i]) Rec<T, Ti> (p, std::get<1> (t));
-          ++i;
-        }
-
-      std::sort (sorted.begin (), sorted.end (), [](const std::tuple<Ti, Ti, Rectangle<T>>& a, const std::tuple<Ti, Ti, Rectangle<T>>& b)
-        {
-          return std::get<1> (a) < std::get<1> (b);
-        });
-
-      for (const std::tuple<Ti, Ti, Rectangle<T>>& t : sorted)
-        {
-          Point<T, 2>* p;
-          *(p = & points [1] [j]) = Point<T, 2> (std::get<2> (t).get_bottom () [1], std::get<2> (t).get_top () [1]);
-
-          new (&sortedy [j]) Rec<T, Ti> (p, std::get<0> (t));
-          ++j;
-        }
-
-      return Recs<T, Ti> (sortedx, sortedy, sorted.size ());
-    }
-
-  template<int axis, int axis2>
-  static inline bool split (const Recs<T, Ti>& dims, const Ti& second)
-    {
-      if (second == 1)
-        {
-          if (second == dims.get_length () - 1)
-
-            return true;
-          else
-            return is_good (split_right<axis, axis2> (dims, second));
-        }
-      else if (second == dims.get_length () - 1)
-        {
-          if (second == 1)
-
-            return true;
-          else
-            return is_good (split_left<axis, axis2> (dims, second));
-        }
-      else
-        {
-          if (! is_good (split_left<axis, axis2> (dims, second)))
-
-            return false;
-          else
-            return is_good (split_right<axis, axis2> (dims, second));
-        }
-    }
-
-  template<int axis, int axis2>
-  static inline Recs<T, Ti> split_left (const Recs<T, Ti>& dims, const Ti& second)
-    {
-      std::vector<int> translate (dims.get_length (), 0);
-
-      auto vec1 = (Rec<T, Ti>*) malloc (second * sizeof (Rec<T, Ti>));
-      auto vec2 = (Rec<T, Ti>*) malloc (second * sizeof (Rec<T, Ti>));
-
-      for (Ti i = 0, j = 0; i < dims.get_length (); ++i) if (dims [axis2] [i].get_index () < second)
-        {
-          translate [i] = j;
-          new (&vec2 [j++]) Rec<T, Ti> (dims [axis2] [i]);
-        }
-
-      for (Ti i = 0; i < second; ++i)
-        {
-          new (&vec1 [i]) Rec<T, Ti> (dims [axis] [i], translate [dims [axis] [i].get_index ()]);
-        }
-
-      if constexpr (axis == 0) return Recs (vec1, vec2, second); else return Recs (vec2, vec1, second);
-    }
-
-  template<int axis, int axis2>
-  static inline Recs<T, Ti> split_right (const Recs<T, Ti>& dims, const Ti& second)
-    {
-      Ti others = dims.get_length () - second;
-      std::vector<int> translate (dims.get_length (), 0);
-
-      auto vec1 = (Rec<T, Ti>*) malloc (others * sizeof (Rec<T, Ti>));
-      auto vec2 = (Rec<T, Ti>*) malloc (others * sizeof (Rec<T, Ti>));
-
-      for (Ti i = 0, j = 0; i < dims.get_length (); ++i) if (dims [axis2] [i].get_index () >= second)
-        {
-          translate [i] = j;
-          new (&vec2 [j++]) Rec<T, Ti> (dims [axis2] [i], dims [axis2] [i].get_index () - second);
-        }
-
-      for (Ti i = second, j = 0; i < dims.get_length (); ++i)
-        {
-          new (&vec1 [j++]) Rec<T, Ti> (dims [axis] [i], translate [dims [axis] [i].get_index ()]);
-        }
-
-      if constexpr (axis == 0) return Recs (vec1, vec2, others); else return Recs (vec2, vec1, others);
+      return false;
     }
 };
 
 template<typename T, typename Ti> int program ()
 {
-  Ti nrecs;
-  std::vector<Point<T, 4>> recs;
-  T x1, y1, x2, y2;
+  Ti nrects;
+  Rectangle<T>* rects;
+  std::vector<Rectangle<T>*> rectv;
+  T x0, y0, x1, y1;
 
-  std::cin >> nrecs;
+  std::cin >> nrects;
+  rects = (Rectangle<T>*) malloc (nrects * sizeof (Rectangle<T>));
+  rectv = std::vector<Rectangle<T>*> ();
+  rectv.reserve (nrects);
 
-  for (Ti i = 0; i < nrecs; ++i)
+  for (Ti i = 0; i < nrects; ++i)
     {
-      std::cin >> x1 >> y1 >> x2 >> y2;
-      recs.push_back (Point<T, 4> (x1, y1, x2, y2));
+      std::cin >> x0 >> y0 >> x1 >> y1;
+      rectv.push_back (new (& rects [i]) Rectangle<T> (x0, y0, x1, y1));
     }
 
-  std::cout << (! Problem<T, Ti> ().solve (std::move (recs)) ? "NO" : "YES") << std::endl;
+  std::cout << (! Problem<T, Ti> ().solve (rectv) ? "NO" : "YES") << std::endl;
   return 0;
 }
 
 int main ()
 {
-  return program<long, int> ();
+  return program<unsigned long, int> ();
 }

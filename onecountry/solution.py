@@ -16,6 +16,9 @@
 #
 from typing import Any, Generator, NoReturn
 
+BOTTOM = 0
+TOP = 1
+
 def collect () -> Generator[tuple[int, ...], Any, NoReturn]:
 
   while True:
@@ -24,22 +27,37 @@ def collect () -> Generator[tuple[int, ...], Any, NoReturn]:
 
 def isGood (recs: list[tuple[tuple[int, int], tuple[int, int]]], axis = 0) -> bool:
 
-  if len (recs) < 2:
+  if (size := len (recs)) < 2:
 
     return True
   else:
 
-    lastp = 0
-    recs = sorted (recs, key = lambda x: x [0] [axis])
+    recs = sorted (recs, key = lambda x: x [BOTTOM] [axis])
+    rightmost = []
 
-    for i in range (len (recs) - 1):
+    for i in range (size):
 
-      lastp = max (lastp, recs [i] [1] [axis])
-      firstp = recs [i + 1] [0] [axis]
+      rightmost.append (max (0 if i == 0 else rightmost [i - 1], recs [i] [TOP] [axis]))
 
-      if firstp >= lastp:
+    i, j = [size // 2] * 2
 
-        return isGood (recs [:1 + i]) and isGood (recs [1 + i:])
+    while (i > 0 or j < size - 1):
+
+      if i > 0:
+
+        if recs [i] [BOTTOM] [axis] < rightmost [i - 1]:
+
+          i -= 1
+        else:
+          return isGood (recs [:i]) and isGood (recs [i:])
+
+      if j < size - 1:
+
+        if recs [j + 1] [BOTTOM] [axis] < rightmost [j]:
+
+          j += 1
+        else:
+          return isGood (recs [:j + 1]) and isGood (recs [j + 1:])
 
     return False if axis > 0 else isGood (recs, 1 + axis)
 

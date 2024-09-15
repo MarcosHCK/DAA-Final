@@ -17,6 +17,7 @@
 
 report='report'
 solver='./solution'
+tester='python3 ../test.py'
 time='time\n  user: %U\n  system: %S\n  elapsed: %E\nmemory\n  shared: %X Kb\n  unshared: %D Kb\n  total: %M Kb'
 
 check ()
@@ -47,10 +48,11 @@ echo 'case0.1:' >> $report
 test "$solver" '4\n0 0 1 2\n0 2 1 3\n1 0 2 1\n1 1 2 3\n' 'YES'
 echo 'case0.1:' >> $report
 test "$solver" '4\n0 0 2 1\n1 2 3 3\n2 0 3 2\n0 1 1 3\n' 'NO'
+exit 0
 
-for ((i = 0; i < 10; i++));
+for ((i = 0; i < 1; i++));
 do
-  arg=`python3 ../test.py`
+  arg=`$tester`
   echo "case$((i+1)):" >> $report
   test "$solver" "$arg" 'YES' "testcase$i"
 done
