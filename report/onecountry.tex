@@ -1,0 +1,110 @@
+% Copyright 2024-2025 MarcosHCK
+% This file is part of DAA-Final-Project.
+%
+% DAA-Final-Project is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+%
+% DAA-Final-Project is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
+%
+
+\subsubsection{Descripci\'on}
+
+Petya decidió visitar Byteland durante el verano. Resultó que el país tiene una historia ciertamente inusual. Inicialmente existían \(n\) reinos, cada uno con su territorio demarcado por un rectángulo en el mapa, con paredes paralelas a los ejes y esquinas localizadas en coordenadas enteras. Ningún territorio se superponía con algún vecino, aunque si podían compartir fronteras (es decir, los rectángulos que los delimitan tiene un lado común). A medida que el tiempo pasó, pares de reinos se fusionaron, aunque solo si el país resultante era un rectángulo también, hasta formar el actual país de Byteland.
+
+Cada reino construyó un castillo rectangular dentro de su territorio, con las mismas reglas de emplazamiento que el territorio mismo. Milagrosamente, después de la unificación de Byteland, todos los castillos permanecieron intactos.
+
+Petya se pregunta si la historia del país, tan peculiar, es de hecho cierta. Quiere determinar si, dada las posiciones actuales de los castillos, es posible que Byteland surgiera como la historia cuenta.
+
+\subsubsection{Datos}
+
+Enteros \(0\leq x_0\leq x_1\leq10^9\) y \(0\leq y_0\leq y_1\leq10^9\) por cada uno de los \(1\leq n\leq 100000\) castillos, donde \(\left(x_0,y_0\right)\) y \(\left(x_1,y_1\right)\) son los vertices inferior izquierdo y superior derecho del \(n\)-ésimo castillo.
+
+\subsubsection{Soluci\'on}
+
+Como el problema no requiere reconstruir las fronteras, lo cual no sería posible con la información actual, sino comprobar si algún arreglo fronterizo es posible. Asi que basta con hallar un conjunto de fronteras que divide el mapa en rectángulos que contienen exactamente un castillo. Para este fin podemos replantear el problema como: comprobar si es posible una partición del plano tal que cada fragmento contiene exactamente una rectángulo.
+
+Esta problema se puede resolver intentando cortes rectos en el plano. Formalmente, un area del plano esta correctamente particionada si contiene solo un rectángulo, o existe un corte recto del plano que lo divide en dos areas correctamente particionadas. De esta definición de deduce que la solución es: dado un conjunto de rectángulos, encontrar un corte (sea horizontal o vertical) tal que no corte ningún rectángulo, dividir el conjunto en dos subconjuntos y resolver el problema para ambos.
+
+Formalmente:
+
+\begin{proof}
+  \begin{equation}
+    R^{(a)}=\left\{r\in R|\forall i,j\in \mathcal{N}:i\geq j\Rightarrow (R^{(a)}_i)_0\geq(R^{(a)}_j)_0\right\}
+    \label{eq:sortedby}
+  \end{equation}
+  \text{donde:}\begin{itemize}
+    \item \(R\) el conjunto de los rectángulos, y \(R_i\) el \(i\)-ésimo rectángulo
+    \item \(r\in R\), \(r^x_{i}\) es la coordenada \(x_i\) del rectángulo \(r\) en el eje \(x\)
+  \end{itemize}
+  \text{existe un corte si}
+  \begin{equation}
+    C^{(a)}(k)=\max_{i\leq k}{\left\{(R^{(a)}_i)_1\right\}}\leq (R^{(a)}_k)_0
+    \label{eq:goodcut}
+  \end{equation}
+  \text{una partición de \(R\) en \(k\) es:}
+  \begin{align}
+    I^{(a)}(R,k)=\left\{r\in R|(R^{(a)}_i)_1\leq (R^{(a)}_k)_0\right\} \label{eq:leftsplit} \\
+    D^{(a)}(R,k)=R-I^{(a)}(R,k)=\left\{r\in R|(R^{(a)}_i)_0\geq (R^{(a)}_k)_0\right\} \label{eq:rightsplit}
+  \end{align}
+  \text{Finalmente, \(R\) es correctamente particionable si:}
+  \begin{equation}
+    P(R)=\left\lvert R\right\rvert=1\lor \exists k: C^{(a)}(k)\land P(I^{(a)}(k))\land P(D^{(a)}(k))
+    \label{eq:goodr}
+  \end{equation}
+\end{proof}
+
+Usando el predicado \eqref{eq:goodr} podemos comprobar que la complejidad algorítmica de calcular su veracidad es:
+
+\begin{proof}
+  \begin{equation}
+    \mathcal{T}(n)=\mathcal{T}(k)+\mathcal{T}(n-k)+\mathcal{O}(n*\log{n})
+    \label{eq:recursivecomplexity}
+  \end{equation}
+  \text{donde el término \(n*\log{n}\) es:}
+  \begin{equation}
+    \mathcal{O}(n)=\mathcal{O}(n*\log{n})=n*\log{n}+n+n
+  \end{equation}
+  \text{donde:}\begin{itemize}
+    \item \(n*\log{n}\) para calcular \eqref{eq:sortedby}
+    \item \(n\) para calcular \eqref{eq:goodcut} para el peor caso (\(k=\left\lvert R\right\rvert-1\))
+    \item \(n\) para calcular \eqref{eq:leftsplit} y \eqref{eq:rightsplit}
+  \end{itemize}
+  \text{La complejidad general del algoritmo esta dado por}
+  \begin{equation}
+    \mathcal{T}(n)=\mathcal{O}(n^2*\log{n})
+  \end{equation}
+  \text{En el peor caso \(k=1\)}
+\end{proof}
+
+Se puede mejorar este algoritmo. Primero, nótese que el cálculo de \eqref{eq:goodcut} en el conjunto \(I^{(a)}(R,k)\) es independiente del cálculo en \(D^{(a)}(R,k)\), lo que significa que nos podemos evitar la segunda llamada recursiva, por lo que la expresión \eqref{eq:recursivecomplexity} queda:
+
+\begin{equation}
+  \mathcal{T}(n)=\mathcal{T}(k_i)*\left\lvert\left\{ k_i\right\}\right\rvert +\mathcal{O}(n*\log{n})
+  \label{eq:recursivecomplexity2}
+\end{equation}
+\text{donde \(k_i\) son los posibles cortes}
+
+Segundo, se puede comprobar los posibles cortes de izquierda a derecha (usando la expresión \eqref{eq:goodcut}) y de derecha a izquierda, con el punto medio como limite para ambas exploraciones, de forma que se garantiza que \(k_i\) es mínimo. Para esta modificación del algoritmo:
+
+\begin{proof}
+  \begin{align*}
+    \mathcal{T}(n)=\mathcal{T}(k_i)*\left\lvert\left\{ k_i\right\}\right\rvert +\mathcal{O}(n*\log{n}) \\
+    =n+\mathcal{O}(n*\log{n}) \\
+    =\mathcal{O}(n*\log{n})
+  \end{align*}
+  \text{En el mejor caso (\(\forall k_i=0\):), y}
+  \begin{align*}
+    \mathcal{T}(n)=\mathcal{T}(k_i)*\left\lvert\left\{ k_i\right\}\right\rvert +\mathcal{O}(n*\log{n}) \\
+    =2\mathcal{T}(\frac{n}{2})+\mathcal{O}(n*\log{n}) \\
+    =\mathcal{O}(n*\log^2{n})
+  \end{align*}
+  \text{Para el peor caso (\(k_0=\frac{n}{2}\) y \(k_1=\frac{n}{2}\), \(\left\{k_i\right\}=\left\{k_0,k_1\right\} \))}
+\end{proof}

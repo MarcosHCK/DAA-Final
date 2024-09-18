@@ -1,0 +1,52 @@
+% Copyright 2024-2025 MarcosHCK
+% This file is part of DAA-Final-Project.
+%
+% DAA-Final-Project is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+%
+% DAA-Final-Project is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
+%
+
+\subsubsection{Descriptci\'on}
+
+Una gran conferencia en ciencias sobrenaturales se va ha impartir en Byteland! En total \(n\) científicos de todo el mundo asistirán, cada uno de ellos envió los días en los que participan: dos enteros \(l_i\) y \(r_i\) (día de llegada y día de salida respectivamente), así como el su país de procedencia \(c_i\), aunque algunos prefirieron no divulgar este último dato.
+
+Todos saben que es interesante conocer académicos de otros países, así que los participantes que no puedan conocer pares de otros países se sentirán molestos. Es posible conocer nuevos amigos todos los días, incluidos los días de llegada y de salida
+
+Los organizadores desean prepararse para lo peor, así que te encargan la tarea de calcular cuál es el mayor números de participantes molestos para un itinerario dado.
+
+\subsubsection{Datos}
+
+Enteros \(1\leq l_i\leq r_i\leq 10^6\) y \(0\leq c_i\leq 200\) para cada uno de los \(1\leq n\leq 500\) científicos que participan, donde \(c_i=0\) indica que no quiere divulgar su país de origen.
+
+\subsubsection{Soluci\'on}
+
+Cada participante tiene un periodo de tiempo para relacionarse con otros participantes, determinado por \(l_i\) y \(r_i\), donde sabemos que se sentirá molesto si no conoce otro participante de distinto país, es decir: sea \(P\) el conjunto de participantes, \(p\in P\) se sentirá molesto si \(U_p=\lnot\exists e\in P:\left[l_e,r_e\right]\cap\left[l_p,r_p\right]\neq\emptyset\wedge c_e\ne c_p\). De la expresión anterior se deduce lo necesario para resolver el problema: primero listar para cada \(p\in P\) los participantes que coincidirán con \(p\), es decir, algún día (o días) es común para los períodos de asistencia de ambos; teniendo los que coinciden, se cuentan aquellos que solo compartirán con otros participantes del mismo país que él. Además, para los participantes que no indican país de origen, se escoge la peor configuración, por ejemplo, si dos participantes asisten juntos, asumiremos que ambos tienen el mismo país, de forma que ambos estarán molestos.
+
+La forma más simple de determinar para cada \(p\in P\) cada \(e\in P\) con los que coincidirán, se puede recorrer \(p\in P\) comprobando si \(e\) comparte algún dia del itinerario, es decir \(C_p=\left\{e\in P|\left[l_e,r_e\right]\cap\left[l_p,r_p\right]\neq\emptyset\right\}\); es evidente que la complejidad algorítmica de tal calculo es \(\mathcal{O}(n^2)\), pero dadas las restricciones del problema (\(n\leq500\)) es aceptable; aun así es notable que existen métodos para calcular \(C(p)\) en tiempo óptimo, como un \href{https://en.wikipedia.org/wiki/Segment_tree}{SegmentTree}, que permite un tiempo de construcción de \(\mathcal{O}(n\log^2{n})\) para este problema específico.
+
+Con los conjuntos \(C_p\) \(\forall p\in P\), podemos calcular la cantidad de participantes molestos:
+
+\begin{equation}
+  U=\sum_{p\in P}{U_p}
+  \label{eq:upsetcount}
+\end{equation}
+\begin{equation*}
+  U_p=\begin{cases}
+    1 & \forall e\in C_p:c_e=c_p \\
+    0 & \text{eoc}
+  \end{cases}
+\end{equation*}
+siempre y cuando \(\lnot\exists p\in P:c_p=0\). La expresión \eqref{eq:upsetcount} da un indicio de su complejidad: se deben recorrer todos los elementos \(p\in P\), y para cada cual se deben recorrer los elementos \(e\in C_p\), que en el peor de los casos es \(\forall p\in P:C_p=P\) (por ejemplo, si todos los participantes quieren asistir a la vez), lo que nos da \(\mathcal{O}(n^2)\).
+
+El conjunto \(C_p\) no contempla los casos donde \(\exists p\in P:c_p=0\) ya que para contemplar el peor escenario posible debemos optimizar el país del que proceden, es decir, asignarle el país que provoque mayor molestia entre sus co-participantes. Para ello se puede dise\~nar \((\max{c_i})^k\) itinerarios diferentes, donde los \(k=\left\vert\left\{p\in P:c_p=0\right\}\right\vert\) participantes sin países se les asigna cualquiera de los posibles, luego para cada itinerario se calcula su respectivo valor \(U\); la complejidad algorítmica de tal procedimiento es, el el peor caso (\(k=n\)), \(\mathcal{O}((\max{c_p})^n*n^2)\).
+
+Evidentemente este es un algoritmo de fuerza bruta, muy poco eficiente, que prueba todos los posibles países asignables. Existen un número de optimizaciones: para \(p\in P\) donde \(c_p=0\), se puede limitar la cantidad de países a probar a los países del conjunto \(\left\{e\in C_p:c_e\right\}\), ya que asignarle un país diferente a todos los participantes \(e\in P\) solo puede disminuir la cardinalidad de \(U\); si \(\forall e\in C_p:c_e=0\) podemos asignarles a todos ellos un solo país, de forma que todos los participantes estarían molestos, o sea, \(\forall e\in C_p:c_e=0\Rightarrow \left\vert U_p\right\vert=\left\vert C_p\right\vert\), por lo que no es necesario probar otros países. Sin embargo, estas optimizaciones solo mejoran la complejidad del caso promedio, dado que este problema es un ejemplo de optimización discreta.
