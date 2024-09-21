@@ -15,7 +15,7 @@
 % along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 %
 
-\subsubsection{Descripci\'on}
+\subsubsection{Descripción}
 
 Petya decidió visitar Byteland durante el verano. Resultó que el país tiene una historia ciertamente inusual. Inicialmente existían \(n\) reinos, cada uno con su territorio demarcado por un rectángulo en el mapa, con paredes paralelas a los ejes y esquinas localizadas en coordenadas enteras. Ningún territorio se superponía con algún vecino, aunque si podían compartir fronteras (es decir, los rectángulos que los delimitan tiene un lado común). A medida que el tiempo pasó, pares de reinos se fusionaron, aunque solo si el país resultante era un rectángulo también, hasta formar el actual país de Byteland.
 
@@ -27,7 +27,7 @@ Petya se pregunta si la historia del país, tan peculiar, es de hecho cierta. Qu
 
 Enteros \(0\leq x_0\leq x_1\leq10^9\) y \(0\leq y_0\leq y_1\leq10^9\) por cada uno de los \(1\leq n\leq 100000\) castillos, donde \(\left(x_0,y_0\right)\) y \(\left(x_1,y_1\right)\) son los vertices inferior izquierdo y superior derecho del \(n\)-ésimo castillo.
 
-\subsubsection{Soluci\'on}
+\subsubsection{Solución}
 
 Como el problema no requiere reconstruir las fronteras, lo cual no sería posible con la información actual, sino comprobar si algún arreglo fronterizo es posible. Asi que basta con hallar un conjunto de fronteras que divide el mapa en rectángulos que contienen exactamente un castillo. Para este fin podemos replantear el problema como: comprobar si es posible una partición del plano tal que cada fragmento contiene exactamente una rectángulo.
 

@@ -15,7 +15,7 @@
 % along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 %
 
-\subsubsection{Descriptci\'on}
+\subsubsection{Descripción}
 
 Una gran conferencia en ciencias sobrenaturales se va ha impartir en Byteland! En total \(n\) científicos de todo el mundo asistirán, cada uno de ellos envió los días en los que participan: dos enteros \(l_i\) y \(r_i\) (día de llegada y día de salida respectivamente), así como el su país de procedencia \(c_i\), aunque algunos prefirieron no divulgar este último dato.
 
@@ -27,7 +27,7 @@ Los organizadores desean prepararse para lo peor, así que te encargan la tarea 
 
 Enteros \(1\leq l_i\leq r_i\leq 10^6\) y \(0\leq c_i\leq 200\) para cada uno de los \(1\leq n\leq 500\) científicos que participan, donde \(c_i=0\) indica que no quiere divulgar su país de origen.
 
-\subsubsection{Soluci\'on}
+\subsubsection{Solución}
 
 Cada participante tiene un periodo de tiempo para relacionarse con otros participantes, determinado por \(l_i\) y \(r_i\), donde sabemos que se sentirá molesto si no conoce otro participante de distinto país, es decir: sea \(P\) el conjunto de participantes, \(p\in P\) se sentirá molesto si \(U_p=\lnot\exists e\in P:\left[l_e,r_e\right]\cap\left[l_p,r_p\right]\neq\emptyset\wedge c_e\ne c_p\). De la expresión anterior se deduce lo necesario para resolver el problema: primero listar para cada \(p\in P\) los participantes que coincidirán con \(p\), es decir, algún día (o días) es común para los períodos de asistencia de ambos; teniendo los que coinciden, se cuentan aquellos que solo compartirán con otros participantes del mismo país que él. Además, para los participantes que no indican país de origen, se escoge la peor configuración, por ejemplo, si dos participantes asisten juntos, asumiremos que ambos tienen el mismo país, de forma que ambos estarán molestos.
 

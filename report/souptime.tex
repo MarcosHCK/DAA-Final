@@ -15,4 +15,78 @@
 % along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 %
 
-placeholder
+\subsubsection{Descripción}
+
+En una región vacía, representada por un mapa cartesiano de coordenadas enteras, viven \(n\) enanos que quieren reunirse para ver su programa de televisión favorito. Cada enano se describe por su posición \(\left(x,y\right)\) en el mapa; además, cada enano puede moverse a una de las casillas \(\left(x+1,y\right)\), \(\left(x-1,y\right)\), \(\left(x,y+1\right)\) o \(\left(x,y-1\right)\) por cada unidad de tiempo. Existen además \(k\) estaciones de metro que pueden llevar al enano que las visite a cualquier otra en el mapa. Todos los enanos son muy respetuosos, por lo que no interfieren el camino de los otros, y pueden ocupar la misma casilla.
+
+Los enanos necesitan ayuda para reunirse en el menor tiempo posible.
+
+\subsubsection{Datos}
+
+Enteros \(1\leq n\leq10^5\) y \(0\leq k\leq10^5\), la cantidad de enanos y estaciones de metro, respectivamente, cada uno de ellos descrito por enteros \(|x_i|\leq 10^8\) y \(|y_i|\leq 10^8\).
+
+\subsubsection{Solución}
+
+Sea
+\begin{equation*}
+  a=\left(a_0,a_1\right)
+\end{equation*}
+\text{punto cualquiera en el plano}
+\begin{equation}
+  d(a,b)=\left\lvert a_0-b_0\right\rvert+\left\lvert b_1-b_1\right\rvert 
+\end{equation}
+\text{Distancia entre los puntos \(a\) y \(b\) usando las reglas del problema} \\
+\text{(conocida como \href{https://en.wikipedia.org/wiki/Taxicab_geometry}{Manhattan Distance})}
+
+Es evidente que la mejor peor solución del problema es obligar a todos los enanos a reunirse, de forma tal que el tiempo mínimo de recorrido en este caso es el tiempo que le toma al enano más alejado del punto de reunión.
+
+Esta solución puede mejorarse usando las estaciones de metro. Para \(k\geq2\), si existe un par de estaciones \(e_0\) y \(e_1\) tal que para el par de puntos \(p_0\) y \(p_1\) (usados anteriormente, son el par de puntas más alejados entre sí) se cumple que \(d(e_0,p_0)<d(p_0,p_1)\) y \(d(e_1,p_1)<d(p_0,p_1)\), podemos reducir el tiempo que tome a los enanos reunirse tomando la ruta \(p_0\rightarrow e_0\rightarrow e_1\rightarrow p_1\).
+
+Formalizando: sea \(D\) el conjunto de los puntos que describen los enanos, y \(E\) el conjunto equivalente para las estaciones, y sea la función que describe la zona del mapa alcanzable desde un punto \(p\) en un tiempo \(t\)
+
+\begin{equation}
+  R(p,t)=\left\{x\in\mathcal{Z}^2|d(x,p)\leq t\right\}
+  \label{eq:reacheable}
+\end{equation}
+
+Dos enanos \(d_0\) y \(d_1\) se pueden reunir en \(t\) si:
+
+\begin{equation*}
+  R(d_0,t)\cap R(d_1,t)\neq\emptyset
+\end{equation*}
+
+De lo que se deduce que para un tiempo \(t\), los \(\left\{d_i\right\}\) enanos pueden reunirse si:
+
+\begin{equation}
+  \forall i\leq n-1: R(d_i)\cap R(d_{i+1})\neq\emptyset
+  \label{eq:allreacheable}
+\end{equation}
+
+Además si existe una estación de metro al alcance de algún enano \(d_i\), es decir, \(\exists e_i\in E: e_i\in R(d_i,t)\), y no se cumple \eqref{eq:allreacheable}, entonces el camino del enano \(d_i\) puede tomar más de un camino, es decir, el conjunto de puntos alcanzables por \(d_i\) en un tiempo \(t^{\prime}>t\) es \(R(d_i,t^{\prime})\cup R(e_i,t^{\prime})\). Generalizando:
+
+\begin{equation}
+  Rc(d,t)=R(d,t)\cup (\cup_{e_i\in E: e_i\in R(d_i,t)}{R(e_i,t)})
+  \label{eq:reacheableclosure}
+\end{equation}
+
+Es válido notar que si un enano \(d_i\) puede acceder a dos estaciones \(e_0\) y \(e_1\), y \(d(d_i,e_0)\leq d(d_i,e_1)\) no es necesario plantearse el camino \(d_i\rightarrow e_1\rightarrow ...\).
+
+Finalmente las expresiones \eqref{eq:reacheableclosure} y \eqref{eq:allreacheable} se pueden combinar.
+
+\begin{equation}
+  \forall i\leq n-1: Rc(d_i)\cap Rc(d_{i+1})\neq\emptyset
+  \label{eq:allreacheableclosure}
+\end{equation}
+
+para crear el problema de optimización:
+
+\begin{mini*}|s|{t}{t}
+  {}{}
+  \addConstraint{\forall i\leq n-1: Rc(d_i)\cap Rc(d_{i+1})\neq\emptyset}
+\end{mini*}
+
+Para obtener una solución óptima a este problema se debe primero notar que si \eqref{eq:allreacheableclosure} se cumple para \(t\), también se cumple para \(t+1\). Si se transforma el valor de \eqref{eq:allreacheableclosure} como entero (0 si no se cumple, 1 si lo hace), se obtiene un arreglo binario ordenado \(\left\{r_i\right\}\), donde \(r_i\) indica si los enanos pueden encontrarse en \(i+1\) unidades de tiempo. Sobre este arreglo podemos realizar una búsqueda binaria para encontrar en menor \(i\) tal que \(r_i=1\).
+
+El costo algorítmico de calcular \eqref{eq:reacheableclosure} es \(\mathcal{O}(1)\), y \eqref{eq:allreacheableclosure} es \(\mathcal{O}(n+k)\) por cada \(t\) en el peor de los casos; es notable que para calcular \eqref{eq:reacheableclosure} podemos usar la primera estación alcanzable para cada enano. El costo algorítmico de la búsqueda es \(\mathcal{O}(\log{T})\), donde \(T\) es el mayor tiempo posible, equivalente a reunir todos los enanos sin usar estaciones; además no es necesario calcular \eqref{eq:allreacheableclosure} para todo el espacio de búsqueda, de forma que la complejidad algorítmica final es \(\mathcal{O}((n+k)*\log{T})\).
+
+Para calcular la estación más cercana a cada enano se puede usar un \href{https://en.wikipedia.org/wiki/K-d_tree}{K-D Tree}, que tiene un tiempo de construcción de \(\mathcal{O}(n*\log{n})\), y un tiempo de búsqueda combinado de \(\mathcal{O}(n*\log{n})\), dando un tiempo de preparacion del algoritmo de \(\mathcal{O}((n+k)*\log{(n+k)})\).
