@@ -14,11 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with DAA-Final-Project. If not, see <http://www.gnu.org/licenses/>.
 #
+from fractions import Fraction
 from sklearn.neighbors import KDTree
 from sys import stderr
 import numpy as np
 
-Point = tuple [int, int]
+Point = tuple [int | Fraction, int | Fraction]
 Line = tuple [Point, Point]
 Rect = tuple [Point, Point, Point, Point]
 
@@ -73,45 +74,65 @@ def convex_hull (points: list[tuple[int,int]]):
 
   return recurse (points)
 
-def intersection_point (a: Line, b: Line):
-
-  s0 = np.array (a [0], np.float32)
-  s1 = np.array (b [0], np.float32)
-  e0 = np.array (a [1], np.float32)
-  e1 = np.array (b [1], np.float32)
-
-  r = e0 - s0
-  s = e1 - s1
-  q = s1 - s0
-
-  if (d := np.cross (r, s)) != 0:
-
-    t = np.dot (q, s) / d
-    u = np.dot (q, r) / d
-
-    if (0 <= t <= 1) and (0 <= u <= 1):
-
-      return tuple (s0 + t * r)
-  return None
-
 def intersection_frame (a: Rect, b: Rect):
 
-  print (f'rectangles {a} and {b}')
-
-  ap = [ (s, e) for s, e in zip (a, map (lambda i: a[-1-i], range (len (a)))) ]
-  bp = [ (s, e) for s, e in zip (b, map (lambda i: a[-1-i], range (len (b)))) ]
-  ip = [ ]
+  ap = [ (s, e) for s, e in zip (a, map (lambda i: a [(1 + i) % len (a)], range (len (a)))) ]
+  bp = [ (s, e) for s, e in zip (b, map (lambda i: b [(1 + i) % len (b)], range (len (b)))) ]
+  il: set [Line] = set ()
+  ip: set [tuple [Fraction, Fraction]] = set ()
 
   for al in ap:
 
     for bl in bp:
 
       if (point := intersection_point (al, bl)) != None:
-        ip.append (point)
 
-  print (ip)
+        il.add (al)
+        il.add (bl)
+        ip.add (point)
 
-  return None
+  if len (ip) == 0:
+
+    return None
+  else:
+
+    for al1, al2 in il:
+
+      for bl1, bl2 in il:
+
+        if al1 == bl2: ip.add ((Fraction (al1 [0]), Fraction (al1 [1])))
+        if al2 == bl1: ip.add ((Fraction (al2 [0]), Fraction (al2 [1])))
+
+    if len (ip) == 2:
+
+      p0, p1 = (p for p in ip)
+      p2, p3 = p0, p1
+    elif len (ip) == 4:
+
+      p0, p1, p2, p3 = (p for p in ip)
+    else:
+      raise Exception ()
+
+    return (p0, p1, p2, p3)
+
+def intersection_point (a: Line, b: Line):
+
+  if (m1 := slope (a)) == (m2 := slope (b)):
+
+    return None
+  else:
+
+    (ax, ay), _ = a
+    (bx, by), _ = b
+
+    x = Fraction ((m1 * ax - m2 * bx + (by - ay)), (m1 - m2))
+    y = m1 * (x - ax) + ay
+
+    if (not onsegment ((x, y), a)) or (not onsegment ((x, y), b)):
+
+      return None
+    else:
+      return (x, y)
 
 def manhattan_distance (a: tuple[int, int], b: tuple[int, int]):
 
@@ -120,6 +141,14 @@ def manhattan_distance (a: tuple[int, int], b: tuple[int, int]):
 def mid (s: int, t: int):
 
   return s + (t - s) // 2
+
+def onsegment (p: tuple[Fraction, Fraction], line: Line):
+
+  (px, py) = p
+  (x0, y0), (x1, y1) = line
+
+  return  (min (x0, x1) <= px <= max (x0, x1)) \
+      and (min (y0, y1) <= py <= max (y0, y1))
 
 def rotating_calipers (hull):
 
@@ -138,14 +167,21 @@ def rotating_calipers (hull):
 
   return points, max_distance
 
-def program ():
+def slope (line: Line):
+
+  (x0, y0), (x1, y1) = line
+
+  if x0 == x1:
+
+    return 0
+  else:
+    return Fraction (y1 - y0, x1 - x0)
+
+if __name__ == '__main__':
 
   ndwarfs, nstations = next (collect ())
   dwarfs = [ (x, y) for _, (x, y) in zip (range (ndwarfs), collect ()) ]
   stations = [ (x, y) for _, (x, y) in zip (range (nstations), collect ()) ]
-
-  print ('dwarfs: ', dwarfs, file = stderr)
-  print ('stations: ', stations, file = stderr)
 
   if ndwarfs < 2:
 
@@ -176,7 +212,8 @@ def program ():
 
         for distance, n, _ in dwarfs:
 
-          if distance <= e: return stations [n]
+          if distance <= e: return (e - distance + 1, stations [n])
+        return None
 
       def intersection_points (e: int):
 
@@ -184,20 +221,21 @@ def program ():
 
         for _, _, point in too_far_to_board (e):
           any = True
-          yield point
-        if (point := nearest_station (e)) != None and any:
-          yield point
+          yield (e, point)
 
-      def intersects (e: int):
+        if (station := nearest_station (e)) != None and any:
+          yield station
+
+      def intersects (t: int):
 
         first = True
 
-        for x, y in intersection_points (e):
+        for e, (x, y) in intersection_points (t):
 
-          pb = (x - e, y)
-          pl = (x, y - e)
-          pr = (x, y + e)
-          pt = (x + e, y)
+          pb = (x, y - e)
+          pl = (x - e, y)
+          pr = (x + e, y)
+          pt = (x, y + e)
 
           if first:
 
@@ -233,5 +271,3 @@ def program ():
         return None
 
       print (search_least (0, dwarfs [-1] [0]))
-
-program ()
