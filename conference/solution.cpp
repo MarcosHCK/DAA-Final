@@ -177,6 +177,127 @@ public:
     }
 };
 
+template<typename C, typename P> inline std::vector<std::tuple<C, P, P>> cleanse (std::vector<std::tuple<C, P, P>>&& vec, const BTree<P, BNode<P>, P>& tree, P* upset, P* zeros)
+{
+  P i = 0;
+  P zerocount = 0;
+  std::set<P> useless;
+
+  for (auto iter = vec.begin (); iter != vec.end (); ++i, ++iter) if (std::get<0> (*iter) == 0)
+    {
+      auto e = std::get<1> (*iter);
+      auto s = std::get<2> (*iter);
+      bool f = true;
+
+      for (const auto& j : tree.lookup (s, e)) if (std::get<0> (vec [j]) != 0) f = false;
+      if (f == true) useless.insert (i);
+      ++zerocount;
+    }
+
+  std::vector<std::tuple<C, P, P>> clean;
+  i = 0;
+
+  clean.reserve (vec.size () - useless.size ());
+
+  for (auto iter = std::make_move_iterator (vec.begin ()); iter != std::make_move_iterator (vec.end ()); ++i, ++iter)
+
+    if ((useless.find (i) != useless.end ()) == false)
+      {
+        clean.push_back (*iter);
+      }
+
+  return (*upset = useless.size (), *zeros = zerocount, std::move (clean));
+}
+
+template<typename C, typename P> inline std::map<P, std::set<C>> genavail (const std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree)
+{
+  C c;
+  P i = 0;
+  std::map<P, std::set<C>> avail;
+
+  for (auto iter = vec.begin (); iter != vec.end (); ++i, ++iter) if (std::get<0> (*iter) == 0)
+    {
+      std::set<C> r;
+      auto e = std::get<1> (*iter);
+      auto s = std::get<2> (*iter);
+
+      for (const auto& j : tree.lookup (s, e))
+        {
+          if ((c = std::get<0> (vec [j])) != 0)
+            r.insert (c);
+        }
+      avail.insert (std::make_pair (i, std::move (r)));
+    }
+
+  return std::move (avail);
+}
+
+template<typename C, typename P> inline P upset_count (const std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree)
+{
+  P upset = 0;
+
+  for (auto iter = vec.begin (); iter != vec.end (); ++iter)
+    {
+      auto c = std::get<0> (*iter);
+      auto e = std::get<1> (*iter);
+      auto s = std::get<2> (*iter);
+      auto f = true;
+
+      for (const auto& j : tree.lookup (s, e))
+        {
+          auto k = std::get<0> (vec [j]);
+          if (c != k) { f = false; break; }
+        }
+
+      if (f == true) ++upset;
+    }
+
+  return upset;
+}
+
+template<typename C, typename P> inline P optimize (std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree, std::map<P, std::set<C>>&& avail)
+{
+  P b, best = 0;
+  std::vector<std::set<C>*> sets;
+  std::vector<P> idxs;
+  std::vector<typename std::set<C>::const_iterator> iters;
+
+  idxs.reserve (avail.size ());
+  iters.reserve (avail.size ());
+  sets.reserve (avail.size ());
+
+  for (auto iter = avail.begin (); iter != avail.end (); ++iter)
+    {
+      idxs.push_back (std::get<0> (*iter));
+      iters.push_back ((std::get<1> (*iter)).begin ());
+      sets.push_back (& std::get<1> (*iter));
+    }
+
+  while (true)
+    {
+      for (int i = 0; i < iters.size (); ++i)
+        {
+          auto k = (idxs [i]);
+          auto c = *(iters [i]);
+          auto e = std::get<1> (vec [k]);
+          auto s = std::get<2> (vec [k]);
+
+          vec [k] = std::make_tuple (c, e, s);
+        }
+
+      if ((b = upset_count (vec, tree)) > best)
+        best = b;
+
+      for (int i = iters.size () - 1; i >= 0; --i)
+        {
+          if (++iters [i] != sets [i]->end ())
+            break;
+          else if (i == 0)
+            return best;
+        }
+    }
+}
+
 template<typename C, typename P> inline P case_ ()
 {
   P npeople;
@@ -196,7 +317,6 @@ template<typename C, typename P> inline P case_ ()
       vec.push_back (std::make_tuple (country, end, start));
     }
 
-  auto copp = std::vector<C> ();
   auto tree = BTree<P, BNode<P>, P> (0, maxl);
 
   std::sort (vec.begin (), vec.end (), [](const std::tuple<C, P, P>& a, const std::tuple<C, P, P>& b)
@@ -204,9 +324,9 @@ template<typename C, typename P> inline P case_ ()
       return std::get<2> (a) < std::get<2> (b);
     });
 
-  copp.reserve (npeople);
-
   P i = 0;
+  P upset = 0;
+  P zeros = 0;
 
   for (auto iter = vec.begin (); iter != vec.end (); ++iter)
     {
@@ -214,49 +334,23 @@ template<typename C, typename P> inline P case_ ()
       auto e = std::get<1> (*iter);
       auto s = std::get<2> (*iter);
 
-      copp.push_back (c);
       tree.insert (s, e, i++);
+      if (c == 0) ++zeros;
     }
 
-  P upset = 0;
-  auto u = false;
-  auto r = false;
+  if (zeros == 0)
 
-  do
-
-    for (auto iter = vec.begin (); iter != vec.end (); ++iter)
-      {
-        auto c = std::get<0> (*iter);
-        auto e = std::get<1> (*iter);
-        auto s = std::get<2> (*iter);
-
-        if (c > 0) for (const auto& s : tree.lookup (s, e))
-          {
-            auto k = copp [s];
-            if (k == 0) { u = true; copp [s] = c; };
-          }
-      }
-  while ((r = u, u = false, r) == true);
-
-  i = 0;
-
-  for (auto iter = vec.begin (); iter != vec.end (); ++iter)
+    upset = upset_count (vec, tree);
+  else
     {
-      auto c = std::get<0> (*iter);
-      auto e = std::get<1> (*iter);
-      auto s = std::get<2> (*iter);
-      auto f = false;
+      zeros = 0;
+      vec = cleanse (std::move (vec), tree, &upset, &zeros);
 
-      c = c > 0 ? c : copp [i];
+      if (zeros == 0)
 
-      for (const auto& s : tree.lookup (s, e))
-        {
-          auto k = copp [s];
-          if (c != k) { f = true; break; }
-        }
-
-      if (f == false) ++upset;
-      ++i;
+        upset += upset_count (vec, tree);
+      else
+        upset += optimize (vec, tree, genavail (vec, tree));
     }
 
   return upset;
