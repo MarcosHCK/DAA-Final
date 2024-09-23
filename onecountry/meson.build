@@ -17,4 +17,5 @@
 
 project ('onecountry', 'cpp')
 
+executable ('brute', sources: [ 'brute.cpp' ])
 executable ('solution', sources: [ 'solution.cpp' ])
