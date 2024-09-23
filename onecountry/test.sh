@@ -42,13 +42,12 @@ test ()
 
 echo 'Tests' > $report
 
-#echo 'case0.1:' >> $report
-#test "$solver" '3\n0 0 1 1\n1 1 2 2\n0 1 1 2\n' 'YES'
+echo 'case0.1:' >> $report
+test "$solver" '3\n0 0 1 1\n1 1 2 2\n0 1 1 2\n' 'YES'
 echo 'case0.1:' >> $report
 test "$solver" '4\n0 0 1 2\n0 2 1 3\n1 0 2 1\n1 1 2 3\n' 'YES'
 echo 'case0.1:' >> $report
 test "$solver" '4\n0 0 2 1\n1 2 3 3\n2 0 3 2\n0 1 1 3\n' 'NO'
-exit 0
 
 for ((i = 0; i < 1; i++));
 do

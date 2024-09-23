@@ -151,6 +151,7 @@ protected:
   static inline size_type mid (size_type l, size_type r) { return l + (r - l) / 2; }
   static inline size_type right (size_type node) { return 2 * node + 2; }
 
+  std::map<T, size_type> fastidx;
   size_type size;
   std::vector<T> store;
   std::vector<N> tree;
@@ -160,7 +161,7 @@ protected:
       if (start == end)
         {
           auto n = N (store [start]);
-
+          fastidx.insert (std::make_pair (store [start], start));
           return (tree [node] = n, & tree [node]);
         }
       else
@@ -191,6 +192,38 @@ protected:
         }
     }
 
+  inline const N* update (size_type node, size_type start, size_type end, size_type l, size_type r)
+    {
+      if (start == end)
+        {
+          auto n = N (store [start]);
+          return (tree [node] = n, & tree [node]);
+        }
+      else
+        {
+          auto m = mid (start, end);
+
+          if (l > m)
+            {
+              auto l_ = & tree [left (node)];
+              auto r_ = update (right (node), m + 1, end, l, r);
+              return (tree [node] = N (*l_, *r_), & tree [node]);
+            }
+          else if (m >= r)
+            {
+              auto l_ = update (left (node), start, m, l, r);
+              auto r_ = & tree [right (node)];
+              return (tree [node] = N (*l_, *r_), & tree [node]);
+            }
+          else
+            {
+              auto l_ = update (left (node), start, m, l, r);
+              auto r_ = update (right (node), m + 1, end, l, r);
+              return (tree [node] = N (*l_, *r_), & tree [node]);
+            }
+        }
+    }
+
 public:
 
   inline SegmentTree (const std::span<T>& vec) : size (vec.size ()), store (vec.begin (), vec.end ()), tree (4 * size)
@@ -204,9 +237,36 @@ public:
     {
       return query (0, 0, size - 1, l, r);
     }
+
+  inline void update ()
+    {
+      update (0, 0, size - 1, 0, size - 1);
+    }
+
+  inline void update (const T& hint)
+    {
+      auto idx = fastidx [hint];
+      update (0, 0, size - 1, idx, idx);
+    }
+
+  inline void update (size_type l, size_type r)
+    {
+      update (0, 0, size - 1, l, r);
+    }
 };
 
-template<typename T, typename Ti> bool solve (std::span<Rectangle<T>*>&& rects);
+template<typename T, std::array<T, 0>::size_type size>
+inline const T& array_min (const std::array<T, size>& ar);
+template<typename T, std::array<T, 0>::size_type size, int ... Is>
+inline const T& array_min_helper (const std::array<T, size>& ar, std::integer_sequence<int, Is ...> const&);
+template<typename T, typename size_type = typename std::span<Deletable<T> *>::size_type>
+inline bool collect (std::vector<Deletable<T> *>&& vec, std::array<size_type, 4>&& lasts, int depth);
+template<typename T, typename Ti>
+bool solve (std::span<Rectangle<T>*>&& rects);
+template<typename T>
+inline bool solve (std::vector<Deletable<T>*>&& rects, int depth);
+template<typename T, typename size_type = typename std::span<Deletable<T> *>::size_type>
+inline std::vector<Deletable<T> *> split (const std::span<Deletable<T> *>& vec, size_type last, size_type second);
 
 template<typename T, typename M, int I> class NodeMax
 {
@@ -215,7 +275,7 @@ public:
 
   inline NodeMax () {}
   inline NodeMax (const NodeMax& o) : most (o.most) { }
-  inline NodeMax (const T& v) : most (std::get<M, I> (v)) { }
+  inline NodeMax (const T& v) : most (v->get_deleted () == false ? std::get<M, I> (v) : std::numeric_limits<M>::min ()) { }
   inline NodeMax (const NodeMax& l, const NodeMax& r) : most (std::max (l.most, r.most)) { }
   inline constexpr const M& get_most () const { return most; }
 };
@@ -227,10 +287,38 @@ public:
 
   inline NodeMin () {}
   inline NodeMin (const NodeMin& o) : most (o.most) { }
-  inline NodeMin (const T& v) : most (std::get<M, I> (v)) { }
+  inline NodeMin (const T& v) : most (v->get_deleted () == false ? std::get<M, I> (v) : std::numeric_limits<M>::max ()) { }
   inline NodeMin (const NodeMin& l, const NodeMin& r) : most (std::min (l.most, r.most)) { }
   inline constexpr const M& get_most () const { return most; }
 };
+
+template<typename T, std::array<T, 0>::size_type size> inline const T& array_min (const std::array<T, size>& ar)
+{
+  static_assert (size > 0);
+  return array_min_helper (ar, std::make_integer_sequence<int, size> ());
+}
+
+template<typename T, std::array<T, 0>::size_type size, int ... Is> inline const T& array_min_helper (const std::array<T, size>& ar, std::integer_sequence<int, Is ...> const&)
+{
+  Maybe<T> value;
+  using unused = int [];
+  (void) unused { (value = (value.is_none () ? ar [Is] : (ar [Is] < *value ? ar [Is] : *value)), 0)... };
+  return *value;
+}
+
+template<typename T, typename size_type> inline bool collect (std::vector<Deletable<T> *>&& vec, std::array<size_type, 4>&& lasts, int depth)
+{
+  std::vector<Deletable<T> *> descent;
+
+  for (size_type i = array_min (lasts); i < vec.size (); ++i) if (vec [i]->get_deleted () == false)
+    descent.push_back (std::move (vec [i]));
+
+  if (descent.size () == vec.size () && vec.size () > 0)
+
+    return false;
+  else
+    return solve (std::move (descent), 1 + depth);
+}
 
 template<typename T, typename Ti> inline int program ()
 {
@@ -260,28 +348,23 @@ template<typename T, typename Ti> inline int program ()
   return (free (rects), 0);
 }
 
-template<typename T, typename ST = typename std::span<Deletable<T>*>::size_type> inline Maybe<ST> find_next (const std::span<Deletable<T>*>& rects, ST skip)
+template<typename T, typename ST = typename std::vector<Deletable<T>*>::size_type> inline Maybe<ST> find_hold (const std::span<Deletable<T>*>& rects, ST hold)
+{
+  for (ST i = hold; i < rects.size (); ++i) if (rects [i]->get_deleted () == false)
+    return std::make_maybe<ST> (i);
+    return Maybe<ST> ();
+}
+
+template<typename T, typename ST = typename std::vector<Deletable<T>*>::size_type> inline Maybe<ST> find_next (const std::span<Deletable<T>*>& rects, ST skip)
 {
   for (ST i = skip + 1; i < rects.size (); ++i) if (rects [i]->get_deleted () == false)
     return std::make_maybe<ST> (i);
     return Maybe<ST> ();
 }
 
-template<typename T, typename ST = typename std::span<Deletable<T>*>::size_type> inline Maybe<ST> find_first (const std::span<Deletable<T>*>& rects)
+template<typename T> inline bool solve (std::vector<Deletable<T> *>&& rects, int depth)
 {
-  return rects [0]->get_deleted () == false ? std::make_maybe<ST> (0) : find_next<T, ST> (rects, 0);
-}
-
-template<typename T> inline bool solve (std::span<Deletable<T>*>&& rects)
-{
-  const int X0 = Rectangle<T>::X0;
-  const int X1 = Rectangle<T>::X1;
-  const int Y0 = Rectangle<T>::Y0;
-  const int Y1 = Rectangle<T>::Y1;
-
   using size_type = std::span<Rectangle<T>*>::size_type;
-
-  std::cerr << "solve (length " << rects.size () << ")" << std::endl;
 
   if (rects.size () < 2)
     {
@@ -290,6 +373,15 @@ template<typename T> inline bool solve (std::span<Deletable<T>*>&& rects)
     }
   else
     {
+      size_type checks, cuts = 1;
+      Maybe<size_type> firstxl = 0;
+      Maybe<size_type> firstyl = 0;
+      Maybe<size_type> firstxr = 0;
+      Maybe<size_type> firstyr = 0;
+      size_t lastxl = 0, lastyl = 0;
+      size_t lastxr = 0, lastyr = 0;
+      Maybe<size_type> second;
+
       std::sort (rects.begin (), rects.end (), [](const Deletable<T>* a, const Deletable<T>* b)
         { return a->get_x0 () < b->get_x0 (); });
         auto x0tree = SegmentTree<Deletable<T> *, NodeMax<Deletable<T> *, T, Rectangle<T>::X1>> (rects);
@@ -303,57 +395,69 @@ template<typename T> inline bool solve (std::span<Deletable<T>*>&& rects)
         { return a->get_y1 () > b->get_y1 (); });
         auto y1tree = SegmentTree<Deletable<T> *, NodeMin<Deletable<T> *, T, Rectangle<T>::Y0>> (rects);
 
-      size_type cuts = 1;
-      auto firstxl = std::make_maybe<size_type> (0);
-      auto firstyl = std::make_maybe<size_type> (0);
-      auto firstxr = std::make_maybe<size_type> (0);
-      auto firstyr = std::make_maybe<size_type> (0);
-      Maybe<size_type> second;
-
       while (cuts > 0)
         {
           cuts = 0;
+        #define CHECKBLOCK(tree,first,last,axis,op,debugprefix,other1,other2,other3) \
+          if (first.is_none () == false) \
+          if ((first = find_hold (tree.get_values (), *first)).is_none () == false) \
+            { \
+          if ((second = find_next (tree.get_values (), *first)).is_none () == false) \
+            { \
+              ++checks; \
+              if (std::get<T, axis> (tree.get_values () [*second]) op tree.query (last, *first).get_most ()) \
+                first = *second; \
+              else \
+                { \
+                  if (! solve (split (tree.get_values (), last, *second), 1 + depth)) \
+                    return false; \
+                  tree.update (last, *second); \
+                  if (true) \
+                    { \
+                      auto ar = tree.get_values ().subspan (last, *second - last); \
+                      for (const auto& r : ar) other1.update (r); \
+                      for (const auto& r : ar) other2.update (r); \
+                      for (const auto& r : ar) other3.update (r); \
+                    } \
+                  first = (last = *second); \
+                  ++cuts; \
+                } } }
 
-          while (true)
+          while (checks > 0)
             {
-              if ((second = find_next (rects, *firstxl)).is_none ())
-                break;
-              if (std::get<T, X0> (x0tree.get_values () [*second]) >= x0tree.query (0, *firstxl).get_most ())
-                { std::cerr << "cut on left x " << *firstxl << "|" << *second << std::endl;
-                  second = *firstxl; }
-
-              if ((second = find_next (rects, *firstyl)).is_none ())
-                break;
-              if (std::get<T, Y0> (x0tree.get_values () [*second]) >= y0tree.query (0, *firstyl).get_most ())
-                { std::cerr << "cut on left y " << *firstyl << "|" << *second << std::endl;
-                  second = *firstyl; }
-
-              if ((second = find_next (rects, *firstxr)).is_none ())
-                break;
-              if (std::get<T, X1> (x0tree.get_values () [*second]) <= x1tree.query (0, *firstxr).get_most ())
-                { std::cerr << "cut on right x " << *firstxr << "|" << *second << std::endl;
-                  second = *firstxr; }
-
-              if ((second = find_next (rects, *firstyr)).is_none ())
-                break;
-              if (std::get<T, Y1> (x0tree.get_values () [*second]) <= y1tree.query (0, *firstyr).get_most ())
-                { std::cerr << "cut on right y " << *firstyr << "|" << *second << std::endl;
-                  second = *firstyr; }
+              checks = 0;
+              CHECKBLOCK (x0tree, firstxl, lastxl, Rectangle<T>::X0, <, "left on x", y0tree, x1tree, y1tree)
+              CHECKBLOCK (y0tree, firstyl, lastyl, Rectangle<T>::Y0, <, "left on y", x0tree, x1tree, y1tree)
+              CHECKBLOCK (x1tree, firstxr, lastxr, Rectangle<T>::X1, >, "right on x", x0tree, y0tree, y1tree)
+              CHECKBLOCK (y1tree, firstyr, lastyr, Rectangle<T>::Y1, >, "right on y", x0tree, y0tree, x1tree)
             }
+        #undef CHECKBLOCK
         }
 
-      return false;
+      return collect (std::move (rects), { lastxl, lastyl, lastxr, lastyr }, 1 + depth);
     }
 }
 
-template<typename T> inline bool solve (std::span<Rectangle<T>*>&& rects)
+template<typename T, typename size_type> inline std::vector<Deletable<T> *> split (const std::span<Deletable<T> *>& vec, size_type last, size_type second)
 {
-  std::vector<Deletable<T> *> down;
+  std::vector<Deletable<T> *> descent;
 
-  down.reserve (rects.size ());
+  // Wild guess
+  descent.reserve (second - last);
 
-  for (const auto& r : rects) down.push_back (new Deletable<T> (r));
-  return solve<T> (std::span (down));
+  for (size_type i = last; i < second; ++i) if (vec [i]->get_deleted () == false)
+    descent.push_back (vec [i]);
+
+  return std::move (descent);
+}
+
+template<typename T> inline bool solve (std::span<Rectangle<T> *>&& rects)
+{
+  std::vector<Deletable<T> *> descent;
+
+  descent.reserve (rects.size ());
+  for (const auto& r : rects) descent.push_back (new Deletable<T> (r));
+  return solve<T> (std::move (descent), 0);
 }
 
 int main ()
