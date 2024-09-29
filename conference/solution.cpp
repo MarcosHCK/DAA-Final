@@ -232,21 +232,36 @@ template<typename C, typename P> inline std::map<P, std::set<C>> genavail (const
   return std::move (avail);
 }
 
-template<typename C, typename P> inline P upset_count (const std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree)
-{
-  P upset = 0;
+template<typename C, typename P> using Memorizer = std::map<std::set<P>, bool>;
 
-  for (auto iter = vec.begin (); iter != vec.end (); ++iter)
+template<typename C, typename P> inline P upset_count (const std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree, Memorizer<C, P>* memo = nullptr)
+{
+  P i = 0;
+  P upset = 0;
+  typename Memorizer<C, P>::const_iterator at;
+
+  for (auto iter = vec.begin (); iter != vec.end (); ++i, ++iter)
     {
       auto c = std::get<0> (*iter);
       auto e = std::get<1> (*iter);
       auto s = std::get<2> (*iter);
+      auto n = tree.lookup (s, e);
       auto f = true;
 
-      for (const auto& j : tree.lookup (s, e))
+      if (memo != nullptr && (at = memo->find (n)) != memo->end ())
+
+        f = std::get<1> (*at);
+      else
         {
-          auto k = std::get<0> (vec [j]);
-          if (c != k) { f = false; break; }
+          for (const auto& j : n)
+            {
+              auto k = std::get<0> (vec [j]);
+              if (c != k) { f = false; break; }
+            }
+
+          if (memo != nullptr)
+
+            memo->insert (std::make_pair (n, f));
         }
 
       if (f == true) ++upset;
@@ -258,6 +273,7 @@ template<typename C, typename P> inline P upset_count (const std::vector<std::tu
 template<typename C, typename P> inline P optimize (std::vector<std::tuple<C, P, P>>& vec, const BTree<P, BNode<P>, P>& tree, std::map<P, std::set<C>>&& avail)
 {
   P b, best = 0;
+  Memorizer<C, P> memo;
   std::vector<std::set<C>*> sets;
   std::vector<P> idxs;
   std::vector<typename std::set<C>::const_iterator> iters;
@@ -285,7 +301,7 @@ template<typename C, typename P> inline P optimize (std::vector<std::tuple<C, P,
           vec [k] = std::make_tuple (c, e, s);
         }
 
-      if ((b = upset_count (vec, tree)) > best)
+      if ((b = upset_count (vec, tree, &memo)) > best)
         best = b;
 
       for (int i = iters.size () - 1; i >= 0; --i)
